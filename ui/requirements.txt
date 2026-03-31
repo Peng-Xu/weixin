@@ -1,0 +1,7 @@
+# UI 自动化依赖
+pywinauto>=0.6.8
+uiautomation>=2.0.18
+pyautogui>=0.9.54
+Pillow>=10.0.0
+loguru>=0.7.0
+pyyaml>=6.0

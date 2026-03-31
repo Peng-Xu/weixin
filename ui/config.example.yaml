@@ -1,0 +1,59 @@
+# 微信 UI 自动化消息读取配置
+
+# ── 操作安全配置 ──
+safety:
+  # 操作间最小延迟(秒), 模拟人类操作节奏
+  min_delay: 0.5
+  # 操作间最大延迟(秒)
+  max_delay: 2.0
+
+# ── 消息读取配置 ──
+reader:
+  # 每个聊天最大滚动次数(越大读取越多历史消息, 但越慢)
+  max_scrolls_per_chat: 50
+  # 自动保存到数据库
+  save_to_db: true
+  # 数据库文件路径
+  db_path: "wechat_messages.db"
+
+# ── 实时监控配置 ──
+monitor:
+  # 轮询间隔(秒)
+  interval: 5.0
+  # 要监控的联系人/群名列表 (为空则只监控当前聊天)
+  contacts: []
+  # contacts:
+  #   - "张三"
+  #   - "工作群"
+  #   - "文件传输助手"
+
+# ── 批量读取配置 ──
+batch:
+  # 模式: "all" 读取所有会话, "list" 只读取指定列表
+  mode: "all"
+  # mode=list 时, 指定要读取的联系人/群名
+  contacts: []
+  # 要跳过的会话 (如公众号/服务号等)
+  skip_sessions:
+    - "微信支付"
+    - "微信团队"
+    - "微信运动"
+    - "服务通知"
+
+# ── 导出配置 ──
+export:
+  # 导出格式: json / csv
+  format: "json"
+  # 导出文件路径
+  output_dir: "exports"
+
+# ── 调试配置 ──
+debug:
+  # 是否保存操作截图 (会占用磁盘空间)
+  screenshot: false
+  # 截图保存目录
+  screenshot_dir: "logs/screenshots"
+  # 策略缓存文件 (加速元素定位)
+  strategy_cache: "logs/strategy_cache.json"
+  # 日志级别: DEBUG / INFO / WARNING / ERROR
+  log_level: "INFO"
