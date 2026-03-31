@@ -1,22 +1,23 @@
 """
 核心消息处理引擎
-接收 WeChatFerry 的消息回调，分发到各处理模块
+接收消息回调，分发到各处理模块
+适配器无关：同时支持 wcferry（3.9.x）和 Webhook（4.x）
 """
 
 import re
 from loguru import logger
-from wcferry import WxMsg
 
 from ai_chat import AIChat
 from safety import RateLimiter
+from wechat_adapter import Message, WechatAdapter
 
 
 class MessageHandler:
-    """消息处理器"""
+    """消息处理器（适配器无关）"""
 
-    def __init__(self, config: dict, wcf, ai: AIChat, limiter: RateLimiter):
+    def __init__(self, config: dict, adapter: WechatAdapter, ai: AIChat, limiter: RateLimiter):
         self.config = config
-        self.wcf = wcf
+        self.adapter = adapter
         self.ai = ai
         self.limiter = limiter
         self.self_wxid = ""  # 自己的 wxid，启动后设置
@@ -31,7 +32,7 @@ class MessageHandler:
     def refresh_contacts(self):
         """刷新联系人缓存"""
         try:
-            contacts = self.wcf.get_contacts()
+            contacts = self.adapter.get_contacts()
             self._contacts = {c["wxid"]: c for c in contacts}
             logger.info(f"已缓存 {len(self._contacts)} 个联系人")
         except Exception as e:
@@ -43,32 +44,32 @@ class MessageHandler:
             return self._contacts[wxid].get("name", wxid)
         return wxid
 
-    def is_group_msg(self, msg: WxMsg) -> bool:
+    def is_group_msg(self, msg: Message) -> bool:
         """判断是否是群消息"""
-        return msg.roomid != ""
+        return msg.is_group
 
-    def is_at_me(self, msg: WxMsg) -> bool:
+    def is_at_me(self, msg: Message) -> bool:
         """判断群消息是否 @了我"""
+        # webhook 模式下 is_at_me 由后端直接设置
+        if msg.is_at_me:
+            return True
+        # wcferry 兜底：检查消息内容是否含 @自己昵称
         if not self.self_wxid:
             return False
-        # WeChatFerry 的 WxMsg 中，被 @ 的人在 msg.content 中会有 @昵称 标记
-        # 同时 msg 对象可能有 is_at 等属性（取决于版本）
-        # 简单判断：检查消息中是否包含 @自己的昵称
         my_name = self.get_contact_name(self.self_wxid)
         return f"@{my_name}" in msg.content
 
-    def extract_message_text(self, msg: WxMsg) -> str:
+    def extract_message_text(self, msg: Message) -> str:
         """
         提取消息文本（去掉 @XXX 前缀）
         """
         text = msg.content.strip()
-        # 移除群消息中的 @xxx 部分
         if self.is_group_msg(msg) and self.self_wxid:
             my_name = self.get_contact_name(self.self_wxid)
             text = re.sub(rf"@{re.escape(my_name)}\s*", "", text).strip()
         return text
 
-    def handle_message(self, msg: WxMsg):
+    def handle_message(self, msg: Message):
         """
         消息处理主入口
         """
@@ -106,7 +107,7 @@ class MessageHandler:
         # ── 私聊消息处理 ──
         self._handle_private_message(msg, sender_name, text)
 
-    def _handle_private_message(self, msg: WxMsg, sender_name: str, text: str):
+    def _handle_private_message(self, msg: Message, sender_name: str, text: str):
         """处理私聊消息"""
         sender_wxid = msg.sender
 
@@ -133,7 +134,7 @@ class MessageHandler:
                 self._reply(msg, ai_reply)
                 self.limiter.record_reply(sender_name)
 
-    def _handle_group_message(self, msg: WxMsg, sender_name: str, text: str):
+    def _handle_group_message(self, msg: Message, sender_name: str, text: str):
         """处理群消息"""
         room_name = self.get_contact_name(msg.roomid)
         group_config = self.config["group"]
@@ -198,15 +199,10 @@ class MessageHandler:
                 return rule.get("reply", "")
         return ""
 
-    def _reply(self, msg: WxMsg, content: str):
+    def _reply(self, msg: Message, content: str):
         """回复消息"""
-        try:
-            if self.is_group_msg(msg):
-                self.wcf.send_text(content, msg.roomid)
-            else:
-                self.wcf.send_text(content, msg.sender)
-        except Exception as e:
-            logger.error(f"发送消息失败: {e}")
+        receiver = msg.roomid if self.is_group_msg(msg) else msg.sender
+        self.adapter.send_text(content, receiver)
 
     def send_to(self, target_type: str, target_name: str, message: str) -> bool:
         """
@@ -219,13 +215,12 @@ class MessageHandler:
             logger.error(f"找不到目标: {target_type}:{target_name}")
             return False
 
-        try:
-            self.wcf.send_text(message, wxid)
+        ok = self.adapter.send_text(message, wxid)
+        if ok:
             logger.info(f"定时消息已发送: {target_type}:{target_name}")
-            return True
-        except Exception as e:
-            logger.error(f"定时消息发送失败: {e}")
-            return False
+        else:
+            logger.error(f"定时消息发送失败: {target_type}:{target_name}")
+        return ok
 
     def _find_wxid(self, target_type: str, target_name: str) -> str:
         """根据昵称查找 wxid"""

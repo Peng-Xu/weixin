@@ -9,6 +9,18 @@ from loguru import logger
 
 
 DEFAULT_CONFIG = {
+    "wechat": {
+        "adapter": "wcferry",
+        "webhook": {
+            "listen_host": "0.0.0.0",
+            "listen_port": 8080,
+            "send_url": "http://127.0.0.1:9000/send/text",
+            "contacts_url": "",
+            "health_url": "",
+            "token": "",
+            "self_wxid": "",
+        },
+    },
     "ai": {
         "provider": "none",
         "anthropic_api_key": "",
@@ -82,7 +94,8 @@ def load_config(config_path: str = "config.yaml") -> dict:
     if config["ai"]["provider"] == "volcengine" and not config["ai"]["volcengine_api_key"]:
         logger.error("选择了火山引擎 ARK 作为 AI 提供商，但未配置 volcengine_api_key")
 
-    logger.info(f"配置加载完成: AI={config['ai']['provider']}, "
+    logger.info(f"配置加载完成: 接入方式={config['wechat']['adapter']}, "
+                f"AI={config['ai']['provider']}, "
                 f"自动回复={config['auto_reply']['enabled']}, "
                 f"定时任务={config['scheduler']['enabled']}")
 

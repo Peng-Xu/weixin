@@ -1,28 +1,42 @@
 """
 微信机器人主程序
-基于 WeChatFerry (wcferry) 实现
+
+支持两种接入方式：
+  • wcferry  —— 微信 PC 3.9.12.17 / 3.9.12.51（Windows 専用）
+  • webhook  —— 微信 4.x，通过 HTTP API 收发消息
 
 使用方法:
-  1. 确保已安装指定版本的微信 PC 客户端 (3.9.12.17 或 3.9.12.51)
-  2. 先登录微信
-  3. pip install -r requirements.txt
-  4. 复制 config.example.yaml 为 config.yaml 并修改配置
-  5. python bot.py
+  1. 配置 config.yaml，设置 wechat.adapter = "wcferry" 或 "webhook"
+  2. python bot.py
 """
 
 import signal
 import sys
 import time
-import threading
 
 from loguru import logger
-from wcferry import Wcf
 
 from config import load_config
 from ai_chat import AIChat
 from message_handler import MessageHandler
 from scheduler import TaskScheduler
 from safety import RateLimiter
+from wechat_adapter import WechatAdapter
+
+
+def build_adapter(config: dict) -> WechatAdapter:
+    """根据配置实例化对应的微信适配器"""
+    adapter_type = config.get("wechat", {}).get("adapter", "wcferry")
+
+    if adapter_type == "wcferry":
+        from wcferry_adapter import WcferryAdapter
+        return WcferryAdapter()
+
+    if adapter_type == "webhook":
+        from webhook_adapter import WebhookAdapter
+        return WebhookAdapter(config)
+
+    raise ValueError(f"未知的微信适配器类型: {adapter_type}")
 
 
 class WxBot:
@@ -31,7 +45,7 @@ class WxBot:
     def __init__(self, config_path: str = "config.yaml"):
         self.config = load_config(config_path)
         self._setup_logging()
-        self.wcf: Wcf | None = None
+        self.adapter: WechatAdapter | None = None
         self.handler: MessageHandler | None = None
         self.scheduler: TaskScheduler | None = None
         self._running = False
@@ -58,33 +72,40 @@ class WxBot:
 
     def start(self):
         """启动机器人"""
+        adapter_type = self.config.get("wechat", {}).get("adapter", "wcferry")
         logger.info("=" * 50)
         logger.info("  微信机器人启动中...")
-        logger.info("  基于 WeChatFerry (wcferry)")
+        logger.info(f"  接入方式: {adapter_type}")
         logger.info("=" * 50)
 
-        # 1. 连接微信
+        # 1. 创建并启动适配器
         try:
-            self.wcf = Wcf()
-            if not self.wcf.is_login():
-                logger.error("微信未登录！请先在 PC 上登录微信，然后重新运行")
-                sys.exit(1)
-        except Exception as e:
-            logger.error(f"连接微信失败: {e}")
-            logger.error("请确认:")
-            logger.error("  1. 微信 PC 客户端已打开并登录 (版本 3.9.12.17 或 3.9.12.51)")
-            logger.error("  2. 已安装 wcferry: pip install wcferry")
+            self.adapter = build_adapter(self.config)
+        except ValueError as e:
+            logger.error(e)
             sys.exit(1)
 
-        self_info = self.wcf.get_self_wxid()
-        logger.info(f"微信已连接, wxid={self_info}")
+        if not self.adapter.start():
+            logger.error("适配器启动失败")
+            sys.exit(1)
+
+        if not self.adapter.is_login():
+            logger.error("微信未登录！")
+            if adapter_type == "wcferry":
+                logger.error("请先在 PC 上登录微信，然后重新运行")
+            elif adapter_type == "webhook":
+                logger.error("请检查微信客户端容器是否运行且已扫码登录")
+            sys.exit(1)
+
+        self_wxid = self.adapter.get_self_wxid()
+        logger.info(f"微信已连接, wxid={self_wxid or '(webhook模式无需wxid)'}")
 
         # 2. 初始化各模块
         ai = AIChat(self.config)
         limiter = RateLimiter(self.config)
 
-        self.handler = MessageHandler(self.config, self.wcf, ai, limiter)
-        self.handler.set_self_wxid(self_info)
+        self.handler = MessageHandler(self.config, self.adapter, ai, limiter)
+        self.handler.set_self_wxid(self_wxid)
         self.handler.refresh_contacts()
 
         # 3. 启动定时任务
@@ -94,9 +115,10 @@ class WxBot:
             self.scheduler.load_tasks(self.config["scheduler"].get("tasks", []))
             self.scheduler.start()
 
-        # 4. 注册消息回调
+        # 4. 注册消息回调并启动接收
+        self.adapter.set_message_callback(self.handler.handle_message)
         self._running = True
-        self._start_message_loop()
+        self.adapter.enable_receiving()
 
         logger.info("机器人已就绪，等待消息...")
         logger.info("按 Ctrl+C 停止")
@@ -114,28 +136,6 @@ class WxBot:
         finally:
             self.stop()
 
-    def _start_message_loop(self):
-        """启动消息接收循环"""
-        def loop():
-            while self._running:
-                try:
-                    # enable_receiving 启用消息接收，get_msg 获取下一条消息
-                    self.wcf.enable_receiving_msg()
-                    while self._running:
-                        msg = self.wcf.get_msg()
-                        if msg:
-                            try:
-                                self.handler.handle_message(msg)
-                            except Exception as e:
-                                logger.error(f"消息处理异常: {e}", exc_info=True)
-                except Exception as e:
-                    if self._running:
-                        logger.error(f"消息循环异常: {e}", exc_info=True)
-                        time.sleep(3)  # 出错后等待重试
-
-        t = threading.Thread(target=loop, daemon=True, name="msg-loop")
-        t.start()
-
     def _signal_handler(self, signum, frame):
         logger.info(f"收到退出信号 ({signum})")
         self._running = False
@@ -148,11 +148,8 @@ class WxBot:
         if self.scheduler:
             self.scheduler.stop()
 
-        if self.wcf:
-            try:
-                self.wcf.disable_recv_msg()
-            except Exception:
-                pass
+        if self.adapter:
+            self.adapter.stop()
 
         logger.info("机器人已停止")
 
