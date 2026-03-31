@@ -1,34 +1,11 @@
 # 微信机器人配置文件
 # 首次使用请复制本文件为 config.yaml 并修改
 
-# ── 微信接入方式 ──
-wechat:
-  # wcferry : 微信 PC 3.9.12.17/3.9.12.51（仅 Windows）
-  # webhook : 微信 4.x，通过 HTTP API 收发消息
-  adapter: "webhook"
-
-  # ―― webhook 模式配置（adapter=webhook 时生效）――
-  webhook:
-    # 本地监听地址和端口，微信客户端容器将消息推送到此
-    listen_host: "0.0.0.0"
-    listen_port: 8080
-
-    # 微信客户端容器的发送消息接口
-    send_url: "http://127.0.0.1:9000/send/text"
-
-    # 获取联系人列表接口（可选；留空则跳过）
-    contacts_url: "http://127.0.0.1:9000/contacts"
-
-    # 健康检查接口、判断微信是否已登录（可选）
-    health_url: "http://127.0.0.1:9000/health"
-
-    # 客户端容器的 API 鉴权 token（若不需要则留空）
-    token: ""
-
-    # 登录微信的 wxid（可留空，部分客户端不提供此接口）
-    self_wxid: ""
-
-  # ―― wcferry 模式无额外配置，考为 version 遌映即可 ――
+# ── WeChatFerry 连接配置 ──
+wcferry:
+  host: "127.0.0.1"     # WeChatFerry 服务地址
+  port: 10086            # WeChatFerry 服务端口
+  debug: false           # 是否开启调试模式
 
 # ── AI 对话配置 ──
 ai:
