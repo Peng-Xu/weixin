@@ -1,5 +1,6 @@
 wcferry>=39.5.0
 anthropic>=0.40.0
+openai>=1.30.0
 apscheduler>=3.10.0
 requests>=2.31.0
 loguru>=0.7.0

@@ -56,6 +56,8 @@ class AIChat:
             self._init_claude(config["ai"]["anthropic_api_key"])
         elif self.provider == "openai":
             self._init_openai(config["ai"]["openai_api_key"])
+        elif self.provider == "volcengine":
+            self._init_volcengine(config["ai"]["volcengine_api_key"])
         elif self.provider == "none":
             logger.info("AI 对话已禁用")
         else:
@@ -81,6 +83,19 @@ class AIChat:
         except Exception as e:
             logger.error(f"OpenAI 初始化失败: {e}")
 
+    def _init_volcengine(self, api_key: str):
+        try:
+            from openai import OpenAI
+            self._client = OpenAI(
+                api_key=api_key,
+                base_url="https://ark.cn-beijing.volces.com/api/v3",
+            )
+            logger.info(f"火山引擎 ARK 初始化成功, model={self.model}")
+        except ImportError:
+            logger.error("请安装 openai: pip install openai")
+        except Exception as e:
+            logger.error(f"火山引擎 ARK 初始化失败: {e}")
+
     def chat(self, contact_id: str, message: str) -> str:
         """
         发送消息并获取 AI 回复
@@ -96,7 +111,7 @@ class AIChat:
         try:
             if self.provider == "claude":
                 reply = self._chat_claude(history)
-            elif self.provider == "openai":
+            elif self.provider in ("openai", "volcengine"):
                 reply = self._chat_openai(history)
             else:
                 return ""

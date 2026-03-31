@@ -13,6 +13,7 @@ DEFAULT_CONFIG = {
         "provider": "none",
         "anthropic_api_key": "",
         "openai_api_key": "",
+        "volcengine_api_key": "",
         "model": "claude-sonnet-4-20250514",
         "system_prompt": "你是一个友好的微信助手，请用简洁的中文回复。",
         "max_tokens": 1024,
@@ -78,6 +79,8 @@ def load_config(config_path: str = "config.yaml") -> dict:
         logger.error("选择了 Claude 作为 AI 提供商，但未配置 anthropic_api_key")
     if config["ai"]["provider"] == "openai" and not config["ai"]["openai_api_key"]:
         logger.error("选择了 OpenAI 作为 AI 提供商，但未配置 openai_api_key")
+    if config["ai"]["provider"] == "volcengine" and not config["ai"]["volcengine_api_key"]:
+        logger.error("选择了火山引擎 ARK 作为 AI 提供商，但未配置 volcengine_api_key")
 
     logger.info(f"配置加载完成: AI={config['ai']['provider']}, "
                 f"自动回复={config['auto_reply']['enabled']}, "

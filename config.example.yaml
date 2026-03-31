@@ -3,14 +3,18 @@
 
 # ── AI 对话配置 ──
 ai:
-  # 选择 AI 提供商：claude / openai / none
+  # 选择 AI 提供商：claude / openai / volcengine / none
   provider: "claude"
   # Anthropic API Key（使用 Claude 时必填）
   anthropic_api_key: "sk-ant-xxxxx"
   # OpenAI API Key（使用 OpenAI 时必填）
   openai_api_key: ""
+  # 火山引擎 ARK API Key（使用 volcengine 时必填）
+  # 在火山引擎控制台 → 方舟 → API Key 管理 中获取
+  volcengine_api_key: ""
   # 模型名称
-  model: "claude-sonnet-4-20250514"
+  # volcengine 填推理接入点 ID（如 ep-20240901-xxxxx）或模型名（如 doubao-pro-32k-241215）
+  model: "doubao-pro-32k-241215"
   # 系统提示词
   system_prompt: |
     你是一个友好的微信助手。请用简洁的中文回复，每次回复不超过 500 字。
