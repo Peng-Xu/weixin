@@ -1,0 +1,86 @@
+# 微信机器人配置文件
+# 首次使用请复制本文件为 config.yaml 并修改
+
+# ── AI 对话配置 ──
+ai:
+  # 选择 AI 提供商：claude / openai / none
+  provider: "claude"
+  # Anthropic API Key（使用 Claude 时必填）
+  anthropic_api_key: "sk-ant-xxxxx"
+  # OpenAI API Key（使用 OpenAI 时必填）
+  openai_api_key: ""
+  # 模型名称
+  model: "claude-sonnet-4-20250514"
+  # 系统提示词
+  system_prompt: |
+    你是一个友好的微信助手。请用简洁的中文回复，每次回复不超过 500 字。
+    不要使用 Markdown 格式（微信不支持渲染）。
+  # 单次回复最大 token 数
+  max_tokens: 1024
+
+# ── 自动回复规则 ──
+auto_reply:
+  # 是否启用关键词自动回复（非 AI）
+  enabled: true
+  rules:
+    - keyword: "你好"
+      reply: "你好！有什么可以帮你的吗？"
+    - keyword: "菜单"
+      reply: |
+        功能菜单：
+        1. 发送任意消息 → AI 智能回复
+        2. 发送「天气」→ 查询天气
+        3. 发送「菜单」→ 显示本菜单
+    - keyword: "天气"
+      reply: "请发送「天气+城市名」，例如：天气北京"
+
+# ── 群管理配置 ──
+group:
+  # 启用群管理的群名列表（为空则所有群都启用）
+  enabled_groups: []
+  # 新成员入群欢迎语（留空则不发送）
+  welcome_message: "欢迎新朋友加入！请先阅读群公告~"
+  # 群内是否启用 AI 回复（需要 @机器人 才触发）
+  ai_reply: true
+  # 群内 AI 回复的触发方式：at（需要@）/ prefix（需要前缀）/ all（所有消息）
+  ai_trigger: "at"
+  # 前缀触发时的前缀字符
+  ai_prefix: "/ai "
+
+# ── 定时任务配置 ──
+scheduler:
+  enabled: true
+  tasks:
+    # 每日早安推送
+    - name: "早安推送"
+      cron: "0 8 * * *"        # 每天早上 8:00
+      target_type: "friend"     # friend / group
+      target_name: "文件传输助手"  # 好友昵称或群名
+      message: "早上好！新的一天开始了，加油！"
+    # # 定时天气推送示例（取消注释启用）
+    # - name: "天气推送"
+    #   cron: "0 7 30 * * *"
+    #   target_type: "group"
+    #   target_name: "测试群"
+    #   message_type: "weather"   # 特殊类型，触发天气查询
+    #   city: "北京"
+
+# ── 安全配置 ──
+safety:
+  # 消息回复最小间隔（秒），防止触发风控
+  min_reply_interval: 2
+  # 每分钟最大回复数
+  max_replies_per_minute: 15
+  # 白名单好友（仅这些好友触发 AI，为空则所有人）
+  whitelist_friends: []
+  # 黑名单好友（这些好友不触发任何回复）
+  blacklist_friends: []
+  # 是否回复陌生人消息
+  reply_strangers: false
+
+# ── 日志配置 ──
+logging:
+  level: "INFO"                  # DEBUG / INFO / WARNING / ERROR
+  file: "logs/wxbot.log"
+  rotation: "10 MB"
+  retention: "7 days"
